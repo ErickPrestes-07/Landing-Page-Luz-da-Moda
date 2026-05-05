@@ -713,20 +713,8 @@ textarea {
   font-weight: 600;
 }
 
-.admin-image-field-help {
-  font-weight: 400;
-  font-size: 0.88rem;
-  color: #6a5a6a;
-  line-height: 1.45;
-  margin: 0;
-}
-
 .admin-image-import {
   margin-top: 0.35rem;
-}
-
-.admin-image-url-input {
-  font-weight: 400;
 }
 
 .ia-preview-wrap {
@@ -928,11 +916,31 @@ textarea {
   color: #6a5a6a;
 }
 
+#auth-form,
 #login-form {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.auth-toggle {
+  margin: 1.5rem 0 1rem;
+  text-align: center;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  color: #c92a66;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.toggle-btn:hover {
+  opacity: 0.8;
 }
 
 .form-group {

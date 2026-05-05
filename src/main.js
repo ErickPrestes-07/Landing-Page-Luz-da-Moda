@@ -1,5 +1,5 @@
 import './style.css'
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { getFirebase } from './firebase.js'
 
@@ -119,8 +119,8 @@ async function compressImageToJpeg(file, maxWidth = 1280, quality = 0.82) {
 function updateImagePickerHints() {
   const coarse = window.matchMedia('(pointer: coarse)').matches
   const label = coarse
-    ? 'Escolher da galeria ou fotos…'
-    : 'Escolher arquivo no explorador…'
+    ? 'Selecione uma foto'
+    : 'Selecione uma foto'
   document.querySelectorAll('[data-picker-hint]').forEach((node) => {
     node.textContent = label
   })
@@ -198,6 +198,9 @@ function startAdminPanel() {
       return
     }
     try {
+      // DESENVOLVIMENTO: Qualquer usuário autenticado é admin
+      // Para PRODUÇÃO, descomente as linhas abaixo para exigir documento em admins/{uid}
+      /*
       const snap = await getDoc(doc(db, 'admins', user.uid))
       if (!snap.exists()) {
         await signOut(auth)
@@ -206,6 +209,7 @@ function startAdminPanel() {
         renderLoginInterface()
         return
       }
+      */
       if (lastAdminAuthUid === user.uid) return
       lastAdminAuthUid = user.uid
       renderAdminInterface()
@@ -376,46 +380,104 @@ function renderLandingPage() {
 
 function renderLoginInterface() {
   const app = document.querySelector('#app')
-  app.innerHTML = `
-    <div class="login-container">
-      <div class="login-form">
-        <h1>Painel Administrativo</h1>
-        <p>Luz da Moda - Acesso restrito</p>
-        <form id="login-form">
-          <div class="form-group">
-            <label for="admin-email">E-mail:</label>
-            <input type="email" id="admin-email" name="email" autocomplete="username" required>
+  let isSignupMode = false
+
+  function renderForm() {
+    app.innerHTML = `
+      <div class="login-container">
+        <div class="login-form">
+          <h1>Painel Administrativo</h1>
+          <p>Luz da Moda - Acesso restrito</p>
+          
+          <form id="auth-form">
+            <div class="form-group">
+              <label for="auth-email">E-mail:</label>
+              <input type="email" id="auth-email" name="email" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+              <label for="auth-password">Senha:</label>
+              <input type="password" id="auth-password" name="password" autocomplete="${isSignupMode ? 'new-password' : 'current-password'}" required>
+            </div>
+            ${isSignupMode ? `
+              <div class="form-group">
+                <label for="auth-password-confirm">Confirmar Senha:</label>
+                <input type="password" id="auth-password-confirm" name="password-confirm" autocomplete="new-password" required>
+              </div>
+            ` : ''}
+            <button type="submit" class="login-btn">${isSignupMode ? 'Criar Conta' : 'Entrar'}</button>
+          </form>
+
+          <div class="auth-toggle">
+            <button id="toggle-auth-mode" class="toggle-btn">${isSignupMode ? 'Já tem conta? Faça login' : 'Não tem conta? Cadastre-se'}</button>
           </div>
-          <div class="form-group">
-            <label for="admin-password">Senha:</label>
-            <input type="password" id="admin-password" name="password" autocomplete="current-password" required>
-          </div>
-          <button type="submit" class="login-btn">Entrar</button>
-        </form>
-        <button id="back-to-site" class="back-btn">Voltar ao Site</button>
+
+          <button id="back-to-site" class="back-btn">Voltar ao Site</button>
+        </div>
       </div>
-    </div>
-  `
+    `
 
-  document.getElementById('login-form').addEventListener('submit', async (e) => {
-    e.preventDefault()
-    const fb = getFirebase()
-    if (!fb) {
-      renderFirebaseMissingInterface()
-      return
-    }
-    const email = document.getElementById('admin-email').value.trim()
-    const password = document.getElementById('admin-password').value
-    try {
-      await signInWithEmailAndPassword(fb.auth, email, password)
-    } catch (err) {
-      alert(authErrorMessage(err))
-    }
-  })
+    const form = document.getElementById('auth-form')
+    const toggleBtn = document.getElementById('toggle-auth-mode')
+    const backBtn = document.getElementById('back-to-site')
 
-  document.getElementById('back-to-site').addEventListener('click', () => {
-    window.location.search = ''
-  })
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const fb = getFirebase()
+      if (!fb) {
+        renderFirebaseMissingInterface()
+        return
+      }
+
+      const email = document.getElementById('auth-email').value.trim()
+      const password = document.getElementById('auth-password').value
+
+      try {
+        if (isSignupMode) {
+          const passwordConfirm = document.getElementById('auth-password-confirm').value
+          if (password !== passwordConfirm) {
+            alert('As senhas não coincidem.')
+            return
+          }
+          if (password.length < 6) {
+            alert('A senha deve ter pelo menos 6 caracteres.')
+            return
+          }
+          await createUserWithEmailAndPassword(fb.auth, email, password)
+          alert('Conta criada com sucesso! Você agora pode fazer login.')
+          isSignupMode = false
+          renderForm()
+        } else {
+          await signInWithEmailAndPassword(fb.auth, email, password)
+        }
+      } catch (err) {
+        const errorMsg = isSignupMode ? signupErrorMessage(err) : authErrorMessage(err)
+        alert(errorMsg)
+      }
+    })
+
+    toggleBtn.addEventListener('click', () => {
+      isSignupMode = !isSignupMode
+      renderForm()
+    })
+
+    backBtn.addEventListener('click', () => {
+      window.location.search = ''
+    })
+  }
+
+  renderForm()
+}
+
+function signupErrorMessage(err) {
+  const code = err?.code || ''
+  const messages = {
+    'auth/email-already-in-use': 'Este e-mail já está cadastrado.',
+    'auth/invalid-email': 'E-mail inválido.',
+    'auth/weak-password': 'Senha muito fraca. Escolha uma senha mais forte.',
+    'auth/operation-not-allowed': 'Cadastro não permitido. Contate o administrador.',
+    'auth/network-request-failed': 'Falha de rede. Verifique sua conexão.'
+  }
+  return messages[code] || 'Não foi possível criar a conta. Tente novamente.'
 }
 
 function renderAdminInterface() {
@@ -441,11 +503,9 @@ function renderAdminInterface() {
               </label>
               <div class="admin-image-field">
                 <span class="admin-image-field-title">Imagem</span>
-                <p class="admin-image-field-help">Cole uma URL ou importe um arquivo. No celular abre a galeria; no computador, o explorador de arquivos.</p>
-                <input type="text" class="admin-image-url-input" value="${escapeAttr(product.image)}" data-field="image" placeholder="https://… ou /images/foto.jpg" />
                 <div class="admin-image-import">
                   <input type="file" id="admin-image-file-${index}" class="visually-hidden-input" accept="image/*" data-image-file data-index="${index}" tabindex="-1" />
-                  <label for="admin-image-file-${index}" class="file-import-btn" data-picker-hint>Escolher arquivo…</label>
+                  <label for="admin-image-file-${index}" class="file-import-btn" data-picker-hint>Selecione uma Foto</label>
                 </div>
               </div>
               <label>Preço: <input type="text" value="${escapeAttr(product.price)}" data-field="price"></label>
