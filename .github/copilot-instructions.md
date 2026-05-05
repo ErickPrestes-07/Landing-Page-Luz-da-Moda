@@ -17,6 +17,7 @@ This is a landing page project for Luz da Moda fashion store.
 - Instagram links
 - Local SEO for Dois Vizinhos, PR
 - Admin panel for product management (?admin)
+- Fully responsive (mobile, tablet, desktop, ultra-wide)
 
 ## Development
 

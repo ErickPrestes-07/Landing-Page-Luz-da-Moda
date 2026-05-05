@@ -298,6 +298,22 @@ textarea {
   gap: 1rem;
 }
 
+.contact-form .field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.contact-form label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #5f3f5f;
+}
+
+.contact-form .req {
+  color: #c92a66;
+  font-weight: 700;
+}
+
 .contact-form input,
 .contact-form textarea {
   width: 100%;
@@ -306,6 +322,19 @@ textarea {
   border: 1px solid #d8c4d7;
   background: #faf5fb;
   resize: vertical;
+}
+
+.contact-form input:focus,
+.contact-form textarea:focus {
+  border-color: #c78aa7;
+  box-shadow: 0 0 0 4px rgba(201, 42, 102, 0.08);
+  outline: none;
+}
+
+.contact-form input::placeholder,
+.contact-form textarea::placeholder {
+  color: #9a8a99;
+  opacity: 1;
 }
 
 .contact-form button {
@@ -588,6 +617,7 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   margin-bottom: 1rem;
 }
 
@@ -601,6 +631,7 @@ textarea {
   color: white;
   border: none;
   padding: 0.5rem 1rem;
+  margin-left: 1rem;
   border-radius: 6px;
   cursor: pointer;
 }
@@ -612,29 +643,54 @@ textarea {
 .admin-product-form {
   display: grid;
   gap: 1rem;
+  grid-template-columns: 1fr;
 }
 
 .admin-product-form label {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  font-size: 0.95rem;
+  color: #4a3a4a;
+  font-weight: 600;
 }
 
 .admin-product-form input,
 .admin-product-form select,
 .admin-product-form textarea {
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  width: 100%;
+  padding: 1rem 1.1rem;
+  border: 1px solid #e2d9e4;
+  border-radius: 10px;
+  background: #fcf8fd;
   font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-product-form input:focus,
+.admin-product-form select:focus,
+.admin-product-form textarea:focus {
+  border-color: #c78aa7;
+  box-shadow: 0 0 0 4px rgba(201, 42, 102, 0.08);
+  outline: none;
 }
 
 .admin-product-form textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 120px;
 }
 
-/* Login Styles */
+@media (min-width: 1024px) {
+  .admin-product-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-product-form label:nth-of-type(5),
+  .admin-product-form label:nth-of-type(6) {
+    grid-column: 1 / -1;
+  }
+}
+
 .login-container {
   min-height: 100vh;
   display: flex;
@@ -721,4 +777,184 @@ textarea {
 
 .back-btn:hover {
   opacity: 0.95;
+}
+
+@media (min-width: 768px) {
+  .login-form {
+    padding: 3rem;
+    max-width: 450px;
+  }
+
+  .login-form h1 {
+    font-size: 2.5rem;
+  }
+}
+
+/* Admin Panel Responsiveness */
+@media (max-width: 767px) {
+  .admin-container {
+    padding: 1rem;
+  }
+
+  .admin-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .admin-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .admin-header-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .admin-header-actions .secondary-button {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .admin-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .admin-actions .cta-button,
+  .admin-actions .secondary-button {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    font-size: 0.95rem;
+  }
+
+  .products-list {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .admin-product {
+    padding: 1rem;
+  }
+
+  .admin-product-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+
+  .admin-product-header h3 {
+    font-size: 1.1rem;
+    margin: 0;
+  }
+
+  .delete-product {
+    align-self: flex-end;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .admin-product-form {
+    gap: 0.875rem;
+  }
+
+  .admin-product-form label {
+    gap: 0.375rem;
+  }
+
+  .admin-product-form input,
+  .admin-product-form select,
+  .admin-product-form textarea {
+    padding: 0.625rem;
+    font-size: 0.95rem;
+  }
+
+  .admin-product-form textarea {
+    min-height: 60px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .admin-container {
+    padding: 2rem 1.5rem;
+  }
+
+  .admin-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .admin-header-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .admin-actions {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .admin-actions .cta-button,
+  .admin-actions .secondary-button {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .products-list {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+  }
+
+  .admin-product {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-container {
+    padding: 3rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .admin-header {
+    margin-bottom: 2rem;
+  }
+
+  .admin-actions {
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .products-list {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.5rem;
+  }
+
+  .admin-product {
+    padding: 2rem;
+  }
+
+  .admin-product-form {
+    gap: 1.25rem;
+  }
+}
+
+@media (min-width: 1440px) {
+  .admin-container {
+    padding: 4rem 3rem;
+  }
+
+  .products-list {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3rem;
+  }
+
+  .admin-product {
+    padding: 2.5rem;
+  }
 }

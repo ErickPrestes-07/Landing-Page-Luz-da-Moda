@@ -31,6 +31,13 @@ Para acessar o painel de administração e atualizar produtos:
 - Salve as alterações no navegador local
 - Exporte/importe dados em JSON para backup
 
+## Responsividade
+
+- **Mobile-first:** Otimizado para dispositivos móveis
+- **Tablet:** Layout adaptado para tablets (720px+)
+- **Desktop:** Layout expandido para telas grandes (1024px+)
+- **Ultra-wide:** Suporte para telas muito largas (1440px+)
+
 ## Novidades
 
 - Layout melhorado com localização da loja e entrega condicional.

@@ -60,8 +60,18 @@ const defaultProducts = [
   }
 ]
 
-// Carregar produtos do localStorage ou usar padrão
-let products = JSON.parse(localStorage.getItem('luzDaModaProducts')) || defaultProducts
+function loadStoredProducts() {
+  try {
+    const raw = localStorage.getItem('luzDaModaProducts')
+    if (!raw) return defaultProducts
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) && parsed.length ? parsed : defaultProducts
+  } catch {
+    return defaultProducts
+  }
+}
+
+let products = loadStoredProducts()
 
 // Verificar se é modo admin
 if (window.location.search.includes('admin')) {
@@ -150,13 +160,22 @@ function renderLandingPage() {
       <div class="contact-info-panel">
         <h2>Entre em contato</h2>
         <p>Peça pelo WhatsApp ou preencha o formulário para atendimento personalizado.</p>
-        <p><strong>WhatsApp:</strong> 55 46 99916-16-42</p>
+        <p><strong>WhatsApp:</strong> (46) 99916-1642</p>
         <p><strong>Instagram:</strong> @lusdamodastore</p>
       </div>
       <form id="contact-form" class="contact-form">
-        <input type="text" name="name" placeholder="Seu Nome" required>
-        <input type="email" name="email" placeholder="Seu Email" required>
-        <textarea name="message" placeholder="Sua Mensagem" required></textarea>
+        <div class="field">
+          <label for="contact-name">Nome <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="contact-name" name="name" placeholder="Digite seu nome" autocomplete="name" required>
+        </div>
+        <div class="field">
+          <label for="contact-email">E-mail <span class="req" aria-hidden="true">*</span></label>
+          <input type="email" id="contact-email" name="email" placeholder="seu@email.com" autocomplete="email" inputmode="email" required>
+        </div>
+        <div class="field">
+          <label for="contact-message">Mensagem <span class="req" aria-hidden="true">*</span></label>
+          <textarea id="contact-message" name="message" placeholder="Como podemos ajudar?" rows="5" autocomplete="off" required></textarea>
+        </div>
         <button type="submit">Enviar mensagem</button>
       </form>
     </section>
@@ -198,12 +217,13 @@ function renderLandingPage() {
   contactForm.addEventListener('submit', (e) => {
     e.preventDefault()
     const formData = new FormData(contactForm)
-    const name = formData.get('name')
-    const email = formData.get('email')
-    const message = formData.get('message')
-    const whatsappMessage = `Olá, meu nome é ${name}. Email: ${email}. Mensagem: ${message}`
+    const name = String(formData.get('name') || '').trim()
+    const email = String(formData.get('email') || '').trim()
+    const message = String(formData.get('message') || '').trim()
+    if (!name || !email || !message) return
+    const whatsappMessage = `Olá, meu nome é ${name}. E-mail: ${email}. Mensagem: ${message}`
     const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`
-    window.open(whatsappUrl, '_blank')
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
   })
 }
 
@@ -254,10 +274,11 @@ function renderAdminInterface() {
     <div class="admin-container">
       <header class="admin-header">
         <h1>Painel Administrativo - Luz da Moda</h1>
-    <div class="admin-header-actions">
-      <button id="logout" class="secondary-button">Sair</button>
-      <button id="back-to-site" class="secondary-button">Voltar ao Site</button>
-    </div>
+        <div class="admin-header-actions">
+          <button id="logout" class="secondary-button">Sair</button>
+          <button id="back-to-site" class="secondary-button">Voltar ao Site</button>
+        </div>
+      </header>
       <div class="admin-actions">
         <button id="add-product" class="cta-button">Adicionar Novo Produto</button>
         <button id="save-changes" class="cta-button">Salvar Alterações</button>
@@ -270,7 +291,7 @@ function renderAdminInterface() {
           <div class="admin-product" data-index="${index}">
             <div class="admin-product-header">
               <h3>${product.name}</h3>
-              <button class="delete-product" data-index="${index}">Excluir</button>
+              <button class="delete-product" data-index="${index}" id="delete-${index}">Excluir</button>
             </div>
             <div class="admin-product-form">
               <label>Nome: <input type="text" value="${product.name}" data-field="name"></label>
@@ -370,7 +391,8 @@ function renderAdminInterface() {
 
   document.addEventListener('click', (e) => {
     if (e.target.classList.contains('delete-product')) {
-      const index = parseInt(e.target.dataset.index)
+      const index = parseInt(e.target.dataset.index, 10)
+      if (Number.isNaN(index)) return
       if (confirm('Tem certeza que deseja excluir este produto?')) {
         products.splice(index, 1)
         renderAdminInterface()
