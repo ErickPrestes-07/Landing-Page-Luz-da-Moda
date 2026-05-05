@@ -7,10 +7,11 @@ yarn.lock
 dist
 .dist
 
-# Environment variables
+# Environment variables (secrets — nunca commitar o .env)
 .env
 .env.local
 .env.*.local
+# Mantém o modelo versionado: .env.example
 
 # IDE
 .vscode

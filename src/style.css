@@ -886,6 +886,26 @@ textarea {
   padding: 2rem 1rem;
 }
 
+.login-loading {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #5f3f5f;
+}
+
+.firebase-setup code {
+  font-size: 0.9em;
+  background: #faf5fb;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+}
+
+.firebase-setup-hint {
+  font-size: 0.95rem;
+  text-align: left;
+  color: #6a5a6a;
+  line-height: 1.5;
+}
+
 .login-form {
   background: white;
   padding: 2.5rem;

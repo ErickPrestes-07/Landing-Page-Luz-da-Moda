@@ -1,4 +1,7 @@
 import './style.css'
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
+import { getFirebase } from './firebase.js'
 
 const whatsappNumber = '5546999161642'
 const whatsappLink = `https://wa.me/${whatsappNumber}`
@@ -147,15 +150,84 @@ document.addEventListener('change', async (e) => {
 })
 
 let pickerHintMediaBound = false
+/** Evita re-render do painel no mesmo UID (ex.: refresh de token). */
+let lastAdminAuthUid = null
 
-// Verificar se é modo admin
-if (window.location.search.includes('admin')) {
-  const isLoggedIn = localStorage.getItem('adminLoggedIn') === 'true'
-  if (isLoggedIn) {
-    renderAdminInterface()
-  } else {
-    renderLoginInterface()
+function authErrorMessage(err) {
+  const code = err?.code || ''
+  const messages = {
+    'auth/invalid-email': 'E-mail inválido.',
+    'auth/user-disabled': 'Esta conta foi desativada.',
+    'auth/user-not-found': 'E-mail ou senha incorretos.',
+    'auth/wrong-password': 'E-mail ou senha incorretos.',
+    'auth/invalid-credential': 'E-mail ou senha incorretos.',
+    'auth/too-many-requests': 'Muitas tentativas. Aguarde um pouco.',
+    'auth/network-request-failed': 'Falha de rede. Verifique sua conexão.'
   }
+  return messages[code] || 'Não foi possível entrar. Tente novamente.'
+}
+
+function renderFirebaseMissingInterface() {
+  const app = document.querySelector('#app')
+  app.innerHTML = `
+    <div class="login-container">
+      <div class="login-form firebase-setup">
+        <h1>Firebase não configurado</h1>
+        <p>Copie <code>.env.example</code> para <code>.env</code> e preencha <code>VITE_FIREBASE_*</code> com os dados do Firebase Console (Configurações do projeto → Seus apps).</p>
+        <p class="firebase-setup-hint"><strong>Produção (Vercel):</strong> em Settings → Environment Variables, cadastre as mesmas variáveis <code>VITE_FIREBASE_*</code> e faça um novo deploy. <strong>Admin:</strong> ative Authentication (e-mail/senha), crie o Firestore, publique <code>firestore.rules</code> e crie o documento <code>admins/&lt;UID&gt;</code> com o UID do usuário admin.</p>
+        <button type="button" id="back-from-setup" class="back-btn">Voltar ao site</button>
+      </div>
+    </div>
+  `
+  document.getElementById('back-from-setup').addEventListener('click', () => {
+    window.location.search = ''
+  })
+}
+
+function startAdminPanel() {
+  const fb = getFirebase()
+  if (!fb) {
+    renderFirebaseMissingInterface()
+    return
+  }
+  const { auth, db } = fb
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      lastAdminAuthUid = null
+      renderLoginInterface()
+      return
+    }
+    try {
+      const snap = await getDoc(doc(db, 'admins', user.uid))
+      if (!snap.exists()) {
+        await signOut(auth)
+        alert('Esta conta não tem permissão de administrador.')
+        lastAdminAuthUid = null
+        renderLoginInterface()
+        return
+      }
+      if (lastAdminAuthUid === user.uid) return
+      lastAdminAuthUid = user.uid
+      renderAdminInterface()
+    } catch (e) {
+      console.error(e)
+      alert('Não foi possível verificar permissões. Tente novamente.')
+      await signOut(auth).catch(() => {})
+      lastAdminAuthUid = null
+      renderLoginInterface()
+    }
+  })
+}
+
+// Modo admin: login via Firebase Auth + autorização no Firestore (coleção admins)
+if (window.location.search.includes('admin')) {
+  const appEl = document.querySelector('#app')
+  appEl.innerHTML = `
+    <div class="login-container">
+      <p class="login-loading">Carregando sessão…</p>
+    </div>
+  `
+  startAdminPanel()
 } else {
   renderLandingPage()
 }
@@ -308,15 +380,15 @@ function renderLoginInterface() {
     <div class="login-container">
       <div class="login-form">
         <h1>Painel Administrativo</h1>
-        <p>Luz da Moda - Acesso Restrito</p>
+        <p>Luz da Moda - Acesso restrito</p>
         <form id="login-form">
           <div class="form-group">
-            <label for="username">Usuário:</label>
-            <input type="text" id="username" name="username" required>
+            <label for="admin-email">E-mail:</label>
+            <input type="email" id="admin-email" name="email" autocomplete="username" required>
           </div>
           <div class="form-group">
-            <label for="password">Senha:</label>
-            <input type="password" id="password" name="password" required>
+            <label for="admin-password">Senha:</label>
+            <input type="password" id="admin-password" name="password" autocomplete="current-password" required>
           </div>
           <button type="submit" class="login-btn">Entrar</button>
         </form>
@@ -325,16 +397,19 @@ function renderLoginInterface() {
     </div>
   `
 
-  document.getElementById('login-form').addEventListener('submit', (e) => {
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault()
-    const username = document.getElementById('username').value
-    const password = document.getElementById('password').value
-
-    if (username === 'Admin' && password === 'Admin') {
-      localStorage.setItem('adminLoggedIn', 'true')
-      renderAdminInterface()
-    } else {
-      alert('Usuário ou senha incorretos!')
+    const fb = getFirebase()
+    if (!fb) {
+      renderFirebaseMissingInterface()
+      return
+    }
+    const email = document.getElementById('admin-email').value.trim()
+    const password = document.getElementById('admin-password').value
+    try {
+      await signInWithEmailAndPassword(fb.auth, email, password)
+    } catch (err) {
+      alert(authErrorMessage(err))
     }
   })
 
@@ -446,10 +521,10 @@ function renderAdminInterface() {
   document.getElementById('tab-btn-list').addEventListener('click', () => setTab('list'))
   document.getElementById('tab-btn-ai').addEventListener('click', () => setTab('ai'))
 
-  document.getElementById('logout').addEventListener('click', () => {
-    localStorage.removeItem('adminLoggedIn')
+  document.getElementById('logout').addEventListener('click', async () => {
     sessionStorage.removeItem('adminTab')
-    renderLoginInterface()
+    const fb = getFirebase()
+    if (fb) await signOut(fb.auth).catch(() => {})
   })
 
   document.getElementById('back-to-site').addEventListener('click', () => {
