@@ -2,34 +2,28 @@ import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
+// Configuração oficial fornecida
+const firebaseConfig = {
+  apiKey: "AIzaSyBXQSGf9FzE0gczT1fZhZsYFGzQLcNQTZ0",
+  authDomain: "landing-page-luz-da-moda.firebaseapp.com",
+  projectId: "landing-page-luz-da-moda",
+  storageBucket: "landing-page-luz-da-moda.firebasestorage.app",
+  messagingSenderId: "256984844389",
+  appId: "1:256984844389:web:52a6ae1fb2f40455269e8c",
+  measurementId: "G-RVJ7T0X29M"
+};
+
 let app
 let auth
 let db
 
-/**
- * Inicializa Firebase uma vez. Retorna null se faltar variável de ambiente (VITE_*).
- */
 export function getFirebase() {
   if (app) return { app, auth, db }
 
-  const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID
-  }
-
-  const required = ['apiKey', 'authDomain', 'projectId', 'appId']
-  const missing = required.filter((k) => !firebaseConfig[k])
-  if (missing.length) {
-    console.warn('[Firebase] Config incompleta. Defina VITE_FIREBASE_* no .env')
-    return null
-  }
-
+  // Inicializa o app com as chaves diretas para garantir funcionamento no deploy
   app = initializeApp(firebaseConfig)
   auth = getAuth(app)
   db = getFirestore(app)
+  
   return { app, auth, db }
 }
