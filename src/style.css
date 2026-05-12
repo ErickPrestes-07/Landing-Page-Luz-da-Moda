@@ -36,6 +36,66 @@ textarea {
   padding: 0 1rem 3rem;
 }
 
+/* ── Barra de navegação ── */
+.site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 16px;
+  border: 1px solid rgba(223, 206, 223, 0.6);
+  box-shadow: 0 4px 20px rgba(113, 77, 109, 0.06);
+}
+
+.site-nav-brand {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #5e3860;
+  letter-spacing: -0.01em;
+}
+
+.site-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.site-nav-link {
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  color: #7c3f60;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.site-nav-link:hover {
+  background: #f5d3e2;
+  border-color: #d19ab4;
+  color: #5e3860;
+}
+
+.site-nav-link--admin {
+  background: rgba(201, 42, 102, 0.07);
+  border-color: rgba(201, 42, 102, 0.15);
+  color: #c92a66;
+  font-size: 0.85rem;
+}
+
+.site-nav-link--admin:hover {
+  background: rgba(201, 42, 102, 0.14);
+  border-color: rgba(201, 42, 102, 0.3);
+  color: #a0204f;
+}
+
 .eyebrow {
   display: inline-block;
   margin-bottom: 1rem;

@@ -247,6 +247,14 @@ function renderLandingPage() {
 
   const app = document.querySelector('#app')
   app.innerHTML = `
+    <nav class="site-nav">
+      <span class="site-nav-brand">✨ Luz da Moda</span>
+      <div class="site-nav-links">
+        <a href="#catalog" class="site-nav-link">Catálogo</a>
+        <a href="/?admin" class="site-nav-link site-nav-link--admin">⚙ Admin</a>
+      </div>
+    </nav>
+
     <header class="hero">
       <div class="hero-content">
         <span class="eyebrow">Luz da Moda</span>
