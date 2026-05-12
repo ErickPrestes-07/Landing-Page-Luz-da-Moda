@@ -418,9 +418,56 @@ function renderLoginInterface() {
   })
 }
 
+function showDeleteModal(productName, onConfirm) {
+  // Remove modal anterior se existir
+  document.getElementById('delete-modal-overlay')?.remove()
+
+  const overlay = document.createElement('div')
+  overlay.id = 'delete-modal-overlay'
+  overlay.className = 'delete-modal-overlay'
+  overlay.innerHTML = `
+    <div class="delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+      <div class="delete-modal-icon">🗑️</div>
+      <h2 id="delete-modal-title" class="delete-modal-title">Excluir produto?</h2>
+      <p class="delete-modal-desc">Você está prestes a excluir <strong>${productName.replace(/</g, '&lt;')}</strong>. Esta ação não pode ser desfeita.</p>
+      <div class="delete-modal-actions">
+        <button type="button" id="delete-modal-cancel" class="delete-modal-btn delete-modal-btn--cancel">Cancelar</button>
+        <button type="button" id="delete-modal-confirm" class="delete-modal-btn delete-modal-btn--confirm">Excluir</button>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(overlay)
+
+  // Animação de entrada
+  requestAnimationFrame(() => overlay.classList.add('is-visible'))
+
+  const close = () => {
+    overlay.classList.remove('is-visible')
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true })
+  }
+
+  document.getElementById('delete-modal-cancel').addEventListener('click', close)
+  document.getElementById('delete-modal-confirm').addEventListener('click', () => {
+    close()
+    onConfirm()
+  })
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close()
+  })
+
+  document.addEventListener('keydown', function handler(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', handler) }
+  })
+
+  // Foco no botão cancelar por padrão
+  requestAnimationFrame(() => document.getElementById('delete-modal-cancel')?.focus())
+}
+
 function renderAdminInterface() {
   const app = document.querySelector('#app')
-  const activeTab = sessionStorage.getItem('adminTab') || 'list'
+
 
   const productRows = products.map((product, index) => `
           <div class="admin-product" data-index="${index}" id="admin-product-${index}">
@@ -465,64 +512,19 @@ function renderAdminInterface() {
         </div>
       </header>
 
-      <div class="admin-tabs" role="tablist" aria-label="Seções do painel">
-        <button type="button" role="tab" id="tab-btn-list" class="admin-tab ${activeTab === 'list' ? 'active' : ''}" aria-selected="${activeTab === 'list'}">Lista de produtos</button>
-        <button type="button" role="tab" id="tab-btn-ai" class="admin-tab ${activeTab === 'ai' ? 'active' : ''}" aria-selected="${activeTab === 'ai'}">Cadastro com IA (foto)</button>
+      <div class="admin-actions">
+        <button type="button" id="add-product" class="cta-button">Adicionar Novo Produto</button>
+        <button type="button" id="save-changes" class="cta-button">Salvar Alterações</button>
+        <button type="button" id="export-data" class="secondary-button">Exportar Dados</button>
+        <button type="button" id="import-data" class="secondary-button">Importar Dados</button>
       </div>
-
-      <div id="panel-list" class="admin-tab-panel" role="tabpanel" ${activeTab !== 'list' ? 'hidden' : ''}>
-        <div class="admin-actions">
-          <button type="button" id="add-product" class="cta-button">Adicionar Novo Produto</button>
-          <button type="button" id="save-changes" class="cta-button">Salvar Alterações</button>
-          <button type="button" id="export-data" class="secondary-button">Exportar Dados</button>
-          <button type="button" id="import-data" class="secondary-button">Importar Dados</button>
-        </div>
-        <div id="products-list" class="products-list">
-          ${productRows}
-        </div>
-      </div>
-
-      <div id="panel-ai" class="admin-tab-panel" role="tabpanel" ${activeTab !== 'ai' ? 'hidden' : ''}>
-        <section class="admin-ia-card" aria-labelledby="ia-heading">
-          <h2 id="ia-heading">Cadastrar produto pela foto</h2>
-          <p class="admin-ia-intro">Escolha uma foto da galeria ou tire uma foto. A IA lê a imagem e preenche nome, categoria, descrição, preço sugerido e tamanhos. Revise e clique em <strong>Salvar alterações</strong> na aba Lista.</p>
-          <p class="admin-ia-note">É necessário configurar a chave <code>OPENAI_API_KEY</code> no projeto na Vercel (Variáveis de ambiente).</p>
-          <div class="admin-ia-controls">
-            <div class="admin-ia-file-import">
-              <input type="file" id="ia-photo" class="visually-hidden-input" accept="image/*" tabindex="-1" />
-              <label for="ia-photo" class="file-import-btn file-import-btn--primary" data-picker-hint>Escolher arquivo…</label>
-            </div>
-            <button type="button" id="ia-analyze" class="cta-button" disabled>Gerar dados com IA</button>
-          </div>
-          <div id="ia-preview-wrap" class="ia-preview-wrap is-hidden">
-            <img id="ia-preview-img" alt="Pré-visualização do produto" width="200" height="200" />
-          </div>
-          <p id="ia-status" class="ia-status" role="status" aria-live="polite"></p>
-        </section>
+      <div id="products-list" class="products-list">
+        ${productRows}
       </div>
     </div>
   `
 
-  const setTab = (tab) => {
-    sessionStorage.setItem('adminTab', tab)
-    const listBtn = document.getElementById('tab-btn-list')
-    const aiBtn = document.getElementById('tab-btn-ai')
-    const panelList = document.getElementById('panel-list')
-    const panelAi = document.getElementById('panel-ai')
-    const isList = tab === 'list'
-    listBtn.classList.toggle('active', isList)
-    aiBtn.classList.toggle('active', !isList)
-    listBtn.setAttribute('aria-selected', String(isList))
-    aiBtn.setAttribute('aria-selected', String(!isList))
-    panelList.hidden = !isList
-    panelAi.hidden = isList
-  }
-
-  document.getElementById('tab-btn-list').addEventListener('click', () => setTab('list'))
-  document.getElementById('tab-btn-ai').addEventListener('click', () => setTab('ai'))
-
   document.getElementById('logout').addEventListener('click', async () => {
-    sessionStorage.removeItem('adminTab')
     const fb = getFirebase()
     if (fb) await signOut(fb.auth).catch(() => {})
   })
@@ -603,114 +605,15 @@ function renderAdminInterface() {
     if (e.target.classList.contains('delete-product')) {
       const index = parseInt(e.target.dataset.index, 10)
       if (Number.isNaN(index)) return
-      if (confirm('Tem certeza que deseja excluir este produto?')) {
+      const productName = products[index]?.name || 'este produto'
+      showDeleteModal(productName, () => {
         products.splice(index, 1)
         renderAdminInterface()
-      }
-    }
-  })
-
-  const iaPhoto = document.getElementById('ia-photo')
-  const iaAnalyze = document.getElementById('ia-analyze')
-  const iaPreviewWrap = document.getElementById('ia-preview-wrap')
-  const iaPreviewImg = document.getElementById('ia-preview-img')
-  const iaStatus = document.getElementById('ia-status')
-  let lastFile = null
-  let lastCompressed = null
-
-  iaPhoto.addEventListener('change', () => {
-    iaStatus.textContent = ''
-    const file = iaPhoto.files?.[0]
-    lastFile = file || null
-    lastCompressed = null
-    if (!file) {
-      iaAnalyze.disabled = true
-      iaPreviewWrap.classList.add('is-hidden')
-      return
-    }
-    if (!file.type.startsWith('image/')) {
-      iaStatus.textContent = 'Selecione um arquivo de imagem.'
-      iaAnalyze.disabled = true
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      iaPreviewImg.src = reader.result
-      iaPreviewWrap.classList.remove('is-hidden')
-      iaAnalyze.disabled = false
-    }
-    reader.readAsDataURL(file)
-  })
-
-  iaAnalyze.addEventListener('click', async () => {
-    if (!lastFile) return
-    iaAnalyze.disabled = true
-    iaStatus.textContent = 'Comprimindo imagem…'
-    try {
-      lastCompressed = await compressImageToJpeg(lastFile)
-    } catch (err) {
-      iaStatus.textContent = err.message || 'Erro ao processar a imagem.'
-      iaAnalyze.disabled = false
-      return
-    }
-
-    iaStatus.textContent = 'Enviando para a IA (pode levar alguns segundos)…'
-    try {
-      const res = await fetch('/api/analyze-product', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: lastCompressed.base64,
-          mimeType: lastCompressed.mimeType
-        })
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        iaStatus.textContent = data.error || `Erro ${res.status}. Verifique a chave OPENAI_API_KEY na Vercel ou use "npm run dev:api" para testar com API local.`
-        iaAnalyze.disabled = false
-        return
-      }
-      if (!data.ok || !data.product) {
-        iaStatus.textContent = 'Resposta inválida da IA.'
-        iaAnalyze.disabled = false
-        return
-      }
-
-      const p = data.product
-      const newProduct = {
-        id: `ia-${Date.now()}`,
-        category: p.category,
-        image: lastCompressed.dataUrl,
-        name: p.name,
-        price: p.price,
-        description: p.description,
-        sizes: p.sizes
-      }
-      products.push(newProduct)
-      try {
-        localStorage.setItem('luzDaModaProducts', JSON.stringify(products))
-      } catch {
-        products.pop()
-        iaStatus.textContent = 'A imagem ficou grande demais para o armazenamento do navegador. Tente outra foto ou cadastre com URL de imagem na lista.'
-        iaAnalyze.disabled = false
-        return
-      }
-      sessionStorage.setItem('adminTab', 'list')
-      renderAdminInterface()
-
-      const idx = products.length - 1
-      requestAnimationFrame(() => {
-        document.getElementById(`admin-product-${idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      })
-
-      const catalogUrl = new URL(window.location.origin + '/')
-      catalogUrl.hash = 'catalog'
-      window.open(catalogUrl.toString(), '_blank', 'noopener,noreferrer')
-    } catch {
-      iaStatus.textContent = 'Falha na rede. Em desenvolvimento use `npm run dev:api` (Vercel CLI) para expor /api.'
-      iaAnalyze.disabled = false
     }
   })
+
+
 
   updateImagePickerHints()
   if (!pickerHintMediaBound) {
