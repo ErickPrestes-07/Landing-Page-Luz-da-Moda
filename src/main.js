@@ -1,0 +1,631 @@
+import './style.css'
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
+import { getFirebase } from './firebase.js'
+
+const whatsappNumber = '5546999161642'
+const whatsappLink = `https://wa.me/${whatsappNumber}`
+
+const defaultProducts = [
+  {
+    id: 'conjunto-floral',
+    category: 'conjuntos',
+    image: '/images/piece-conjunto1.jpg',
+    name: 'Conjunto Floral Premium',
+    price: 'R$ 179,90',
+    description: 'Conjunto leve com estampa floral e acabamento elegante. Ideal para trabalho e eventos sociais.',
+    sizes: ['P', 'M', 'G']
+  },
+  {
+    id: 'blusa-rosa',
+    category: 'blusas',
+    image: '/images/piece-blusa.jpg',
+    name: 'Blusa Feminina Rosa',
+    price: 'R$ 89,90',
+    description: 'Blusa moderna em tecido leve, com detalhe em mangas amplas e caimento sofisticado.',
+    sizes: ['P', 'M', 'G']
+  },
+  {
+    id: 'camisa-branca',
+    category: 'camisas',
+    image: '/images/piece-camisa.jpg',
+    name: 'Camisa Branca Casual',
+    price: 'R$ 109,90',
+    description: 'Camisa clássica com modelagem solta, perfeita para looks chiques e confortáveis.',
+    sizes: ['P', 'M']
+  },
+  {
+    id: 'calca-marrom',
+    category: 'calcas',
+    image: '/images/piece-calca.jpg',
+    name: 'Calça Marrom Alfaiataria',
+    price: 'R$ 129,90',
+    description: 'Calça de alfaiataria com corte reto, ótima para combinar com blusas e jaquetas.',
+    sizes: ['P', 'M', 'G']
+  },
+  {
+    id: 'bermuda-casual',
+    category: 'calcas',
+    image: '/images/piece-bermuda.jpg',
+    name: 'Bermuda Casual Marrom',
+    price: 'R$ 99,90',
+    description: 'Bermuda confortável com elastano, perfeita para produções modernas do dia a dia.',
+    sizes: ['M']
+  },
+  {
+    id: 'conjunto-terra',
+    category: 'conjuntos',
+    image: '/images/piece-conjunto2.jpg',
+    name: 'Conjunto Terra',
+    price: 'R$ 189,90',
+    description: 'Conjunto em tons terrosos, ideal para várias ocasiões com muito estilo e conforto.',
+    sizes: ['P', 'M']
+  }
+]
+
+function loadStoredProducts() {
+  try {
+    const raw = localStorage.getItem('luzDaModaProducts')
+    if (!raw) return defaultProducts
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) && parsed.length ? parsed : defaultProducts
+  } catch {
+    return defaultProducts
+  }
+}
+
+let products = loadStoredProducts()
+
+function escapeHtml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function escapeAttr(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+}
+
+async function compressImageToJpeg(file, maxWidth = 1280, quality = 0.82) {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, maxWidth / bitmap.width)
+  const w = Math.max(1, Math.round(bitmap.width * scale))
+  const h = Math.max(1, Math.round(bitmap.height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(bitmap, 0, 0, w, h)
+  bitmap.close?.()
+  const blob = await new Promise((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', quality)
+  )
+  if (!blob) throw new Error('Não foi possível processar a imagem.')
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result)
+    r.onerror = () => reject(new Error('Leitura da imagem falhou.'))
+    r.readAsDataURL(blob)
+  })
+  const base64 = String(dataUrl).split(',')[1] || ''
+  return { base64, mimeType: 'image/jpeg', dataUrl: String(dataUrl) }
+}
+
+function updateImagePickerHints() {
+  const coarse = window.matchMedia('(pointer: coarse)').matches
+  const label = coarse
+    ? 'Escolher da galeria ou fotos…'
+    : 'Escolher arquivo no explorador…'
+  document.querySelectorAll('[data-picker-hint]').forEach((node) => {
+    node.textContent = label
+  })
+}
+
+document.addEventListener('change', async (e) => {
+  const el = e.target
+  if (!(el instanceof HTMLInputElement) || !el.hasAttribute('data-image-file')) return
+  const file = el.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    alert('Selecione um arquivo de imagem.')
+    el.value = ''
+    return
+  }
+  const index = parseInt(el.dataset.index ?? '', 10)
+  if (Number.isNaN(index)) return
+  const row = document.getElementById(`admin-product-${index}`)
+  const urlInput = row?.querySelector('[data-field="image"]')
+  if (!urlInput) return
+  try {
+    urlInput.value = (await compressImageToJpeg(file)).dataUrl
+  } catch (err) {
+    alert(err.message || 'Erro ao processar a imagem.')
+  }
+  el.value = ''
+})
+
+let pickerHintMediaBound = false
+/** Evita re-render do painel no mesmo UID (ex.: refresh de token). */
+let lastAdminAuthUid = null
+
+function authErrorMessage(err) {
+  const code = err?.code || ''
+  const messages = {
+    'auth/invalid-email': 'E-mail inválido.',
+    'auth/user-disabled': 'Esta conta foi desativada.',
+    'auth/user-not-found': 'E-mail ou senha incorretos.',
+    'auth/wrong-password': 'E-mail ou senha incorretos.',
+    'auth/invalid-credential': 'E-mail ou senha incorretos.',
+    'auth/too-many-requests': 'Muitas tentativas. Aguarde um pouco.',
+    'auth/network-request-failed': 'Falha de rede. Verifique sua conexão.'
+  }
+  return messages[code] || 'Não foi possível entrar. Tente novamente.'
+}
+
+function renderFirebaseMissingInterface() {
+  const app = document.querySelector('#app')
+  app.innerHTML = `
+    <div class="login-container">
+      <div class="login-form firebase-setup">
+        <h1>Firebase não configurado</h1>
+        <p>Copie <code>.env.example</code> para <code>.env</code> e preencha <code>VITE_FIREBASE_*</code> com os dados do Firebase Console (Configurações do projeto → Seus apps).</p>
+        <p class="firebase-setup-hint"><strong>Produção (Vercel):</strong> em Settings → Environment Variables, cadastre as mesmas variáveis <code>VITE_FIREBASE_*</code> e faça um novo deploy. <strong>Admin:</strong> ative Authentication (e-mail/senha), crie o Firestore, publique <code>firestore.rules</code> e crie o documento <code>admins/&lt;UID&gt;</code> com o UID do usuário admin.</p>
+        <button type="button" id="back-from-setup" class="back-btn">Voltar ao site</button>
+      </div>
+    </div>
+  `
+  document.getElementById('back-from-setup').addEventListener('click', () => {
+    window.location.search = ''
+  })
+}
+
+function startAdminPanel() {
+  const fb = getFirebase()
+  if (!fb) {
+    renderFirebaseMissingInterface()
+    return
+  }
+  const { auth, db } = fb
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      lastAdminAuthUid = null
+      renderLoginInterface()
+      return
+    }
+    try {
+      const snap = await getDoc(doc(db, 'admins', user.uid))
+      if (!snap.exists()) {
+        await signOut(auth)
+        alert('Esta conta não tem permissão de administrador.')
+        lastAdminAuthUid = null
+        renderLoginInterface()
+        return
+      }
+      if (lastAdminAuthUid === user.uid) return
+      lastAdminAuthUid = user.uid
+      renderAdminInterface()
+    } catch (e) {
+      console.error(e)
+      alert('Não foi possível verificar permissões. Tente novamente.')
+      await signOut(auth).catch(() => {})
+      lastAdminAuthUid = null
+      renderLoginInterface()
+    }
+  })
+}
+
+// Modo admin: login via Firebase Auth + autorização no Firestore (coleção admins)
+if (window.location.search.includes('admin')) {
+  const appEl = document.querySelector('#app')
+  appEl.innerHTML = `
+    <div class="login-container">
+      <p class="login-loading">Carregando sessão…</p>
+    </div>
+  `
+  startAdminPanel()
+} else {
+  renderLandingPage()
+}
+
+function renderLandingPage() {
+  const productCards = products.map(product => `
+    <article class="product" data-category="${escapeAttr(product.category)}">
+      <img src="${escapeAttr(product.image)}" alt="${escapeAttr(product.name)}" />
+      <div class="product-body">
+        <h3>${escapeHtml(product.name)}</h3>
+        <p class="price">${escapeHtml(product.price)}</p>
+        <p class="product-desc">${escapeHtml(product.description)}</p>
+        <p class="sizes"><strong>Tamanhos:</strong> ${escapeHtml(product.sizes.join(', '))}</p>
+      </div>
+    </article>
+  `).join('')
+
+  const app = document.querySelector('#app')
+  app.innerHTML = `
+    <nav class="site-nav">
+      <span class="site-nav-brand">✨ Luz da Moda</span>
+      <div class="site-nav-links">
+        <a href="#catalog" class="site-nav-link">Catálogo</a>
+        <a href="/?admin" class="site-nav-link site-nav-link--admin">⚙ Admin</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div class="hero-content">
+        <span class="eyebrow">Luz da Moda</span>
+        <h1>Moda feminina com estilo e atendimento local</h1>
+        <p>Peças selecionadas para você, com entrega condicional em Dois Vizinhos e região.</p>
+        <div class="hero-actions">
+          <a href="${whatsappLink}" class="cta-button">Peça pelo WhatsApp</a>
+          <a href="#catalog" class="secondary-button">Ver catálogo</a>
+        </div>
+        <p class="hero-note">Entregas condicionais sob consulta. Retirada em loja e atendimento rápido pelo WhatsApp.</p>
+      </div>
+      <div class="hero-image-wrap">
+        <img src="/images/piece-blusa.jpg" alt="Peças femininas da Luz da Moda" class="hero-image" />
+      </div>
+    </header>
+
+    <section class="location">
+      <div>
+        <h2>Localização da loja</h2>
+        <p>Centro de Dois Vizinhos - PR</p>
+        <p>Atendimento presencial e retirada na loja. Agende sua visita pelo WhatsApp.</p>
+      </div>
+    </section>
+
+    <section id="catalog" class="catalog">
+      <div class="catalog-header">
+        <h2>Catálogo por peça</h2>
+        <p>Escolha sua peça ideal e confira tamanhos, descrição e valores.</p>
+      </div>
+      <div class="filters">
+        <button class="filter-btn active" data-category="all">Todos</button>
+        <button class="filter-btn" data-category="vestidos">Vestidos</button>
+        <button class="filter-btn" data-category="blusas">Blusas</button>
+        <button class="filter-btn" data-category="camisas">Camisas</button>
+        <button class="filter-btn" data-category="calcas">Calças</button>
+        <button class="filter-btn" data-category="conjuntos">Conjuntos</button>
+      </div>
+      <div class="products">
+        ${productCards}
+      </div>
+    </section>
+
+    <section class="testimonials">
+      <h2>O que nossas clientes falam</h2>
+      <div class="testimonial-grid">
+        <article class="testimonial-card">
+          <p>"Amei a qualidade e o atendimento da Luz da Moda. Entrega rápida e de confiança."</p>
+          <cite>- Juliana, Dois Vizinhos</cite>
+        </article>
+        <article class="testimonial-card">
+          <p>"Peças lindas e ótimo caimento. Recomendo para quem busca moda elegante e confortável."</p>
+          <cite>- Camila, PR</cite>
+        </article>
+      </div>
+    </section>
+
+    <section class="contact">
+      <div class="contact-info-panel">
+        <h2>Entre em contato</h2>
+        <p>Peça pelo WhatsApp ou preencha o formulário para atendimento personalizado.</p>
+        <p><strong>WhatsApp:</strong> (46) 99916-1642</p>
+        <p><strong>Instagram:</strong> @lusdamodastore</p>
+      </div>
+      <form id="contact-form" class="contact-form">
+        <div class="field">
+          <label for="contact-name">Nome <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="contact-name" name="name" placeholder="Digite seu nome" autocomplete="name" required>
+        </div>
+        <div class="field">
+          <label for="contact-email">E-mail <span class="req" aria-hidden="true">*</span></label>
+          <input type="email" id="contact-email" name="email" placeholder="seu@email.com" autocomplete="email" inputmode="email" required>
+        </div>
+        <div class="field">
+          <label for="contact-message">Mensagem <span class="req" aria-hidden="true">*</span></label>
+          <textarea id="contact-message" name="message" placeholder="Como podemos ajudar?" rows="5" autocomplete="off" required></textarea>
+        </div>
+        <button type="submit">Enviar mensagem</button>
+      </form>
+    </section>
+
+    <footer class="footer">
+      <div>
+        <p>Luz da Moda - Centro, Dois Vizinhos, PR</p>
+        <p>Entrega condicional e agendamento via WhatsApp.</p>
+      </div>
+      <div class="social-links">
+        <a href="https://instagram.com/lusdamodastore">Instagram</a>
+        <a href="${whatsappLink}">WhatsApp</a>
+      </div>
+    </footer>
+
+    <a href="${whatsappLink}" class="whatsapp-float" aria-label="Ir para WhatsApp">💬</a>
+  `
+
+  const filterButtons = document.querySelectorAll('.filter-btn')
+  const productCardsElements = document.querySelectorAll('.product')
+
+  filterButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const category = button.dataset.category
+      filterButtons.forEach(btn => btn.classList.remove('active'))
+      button.classList.add('active')
+
+      productCardsElements.forEach(product => {
+        if (category === 'all' || product.dataset.category === category) {
+          product.style.display = 'grid'
+        } else {
+          product.style.display = 'none'
+        }
+      })
+    })
+  })
+
+  const contactForm = document.getElementById('contact-form')
+  contactForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const formData = new FormData(contactForm)
+    const name = String(formData.get('name') || '').trim()
+    const email = String(formData.get('email') || '').trim()
+    const message = String(formData.get('message') || '').trim()
+    if (!name || !email || !message) return
+    const whatsappMessage = `Olá, meu nome é ${name}. E-mail: ${email}. Mensagem: ${message}`
+    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+  })
+}
+
+function renderLoginInterface() {
+  const app = document.querySelector('#app')
+  app.innerHTML = `
+    <div class="login-container">
+      <div class="login-form">
+        <h1>Painel Administrativo</h1>
+        <p>Luz da Moda - Acesso restrito</p>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="admin-email">E-mail:</label>
+            <input type="email" id="admin-email" name="email" autocomplete="username" required>
+          </div>
+          <div class="form-group">
+            <label for="admin-password">Senha:</label>
+            <input type="password" id="admin-password" name="password" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="login-btn">Entrar</button>
+        </form>
+        <button id="back-to-site" class="back-btn">Voltar ao Site</button>
+      </div>
+    </div>
+  `
+
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const fb = getFirebase()
+    if (!fb) {
+      renderFirebaseMissingInterface()
+      return
+    }
+    const email = document.getElementById('admin-email').value.trim()
+    const password = document.getElementById('admin-password').value
+    try {
+      await signInWithEmailAndPassword(fb.auth, email, password)
+    } catch (err) {
+      alert(authErrorMessage(err))
+    }
+  })
+
+  document.getElementById('back-to-site').addEventListener('click', () => {
+    window.location.search = ''
+  })
+}
+
+function showDeleteModal(productName, onConfirm) {
+  // Remove modal anterior se existir
+  document.getElementById('delete-modal-overlay')?.remove()
+
+  const overlay = document.createElement('div')
+  overlay.id = 'delete-modal-overlay'
+  overlay.className = 'delete-modal-overlay'
+  overlay.innerHTML = `
+    <div class="delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+      <div class="delete-modal-icon">🗑️</div>
+      <h2 id="delete-modal-title" class="delete-modal-title">Excluir produto?</h2>
+      <p class="delete-modal-desc">Você está prestes a excluir <strong>${productName.replace(/</g, '&lt;')}</strong>. Esta ação não pode ser desfeita.</p>
+      <div class="delete-modal-actions">
+        <button type="button" id="delete-modal-cancel" class="delete-modal-btn delete-modal-btn--cancel">Cancelar</button>
+        <button type="button" id="delete-modal-confirm" class="delete-modal-btn delete-modal-btn--confirm">Excluir</button>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(overlay)
+
+  // Animação de entrada
+  requestAnimationFrame(() => overlay.classList.add('is-visible'))
+
+  const close = () => {
+    overlay.classList.remove('is-visible')
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true })
+  }
+
+  document.getElementById('delete-modal-cancel').addEventListener('click', close)
+  document.getElementById('delete-modal-confirm').addEventListener('click', () => {
+    close()
+    onConfirm()
+  })
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close()
+  })
+
+  document.addEventListener('keydown', function handler(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', handler) }
+  })
+
+  // Foco no botão cancelar por padrão
+  requestAnimationFrame(() => document.getElementById('delete-modal-cancel')?.focus())
+}
+
+function renderAdminInterface() {
+  const app = document.querySelector('#app')
+
+
+  const productRows = products.map((product, index) => `
+          <div class="admin-product" data-index="${index}" id="admin-product-${index}">
+            <div class="admin-product-header">
+              <h3>${escapeHtml(product.name)}</h3>
+              <button type="button" class="delete-product" data-index="${index}" id="delete-${index}">Excluir</button>
+            </div>
+            <div class="admin-product-form">
+              <label>Nome: <input type="text" value="${escapeAttr(product.name)}" data-field="name"></label>
+              <label>Categoria:
+                <select data-field="category">
+                  <option value="blusas" ${product.category === 'blusas' ? 'selected' : ''}>Blusas</option>
+                  <option value="camisas" ${product.category === 'camisas' ? 'selected' : ''}>Camisas</option>
+                  <option value="calcas" ${product.category === 'calcas' ? 'selected' : ''}>Calças</option>
+                  <option value="conjuntos" ${product.category === 'conjuntos' ? 'selected' : ''}>Conjuntos</option>
+                  <option value="vestidos" ${product.category === 'vestidos' ? 'selected' : ''}>Vestidos</option>
+                </select>
+              </label>
+              <div class="admin-image-field">
+                <span class="admin-image-field-title">Imagem</span>
+                <p class="admin-image-field-help">Cole uma URL ou importe um arquivo. No celular abre a galeria; no computador, o explorador de arquivos.</p>
+                <input type="text" class="admin-image-url-input" value="${escapeAttr(product.image)}" data-field="image" placeholder="https://… ou /images/foto.jpg" />
+                <div class="admin-image-import">
+                  <input type="file" id="admin-image-file-${index}" class="visually-hidden-input" accept="image/*" data-image-file data-index="${index}" tabindex="-1" />
+                  <label for="admin-image-file-${index}" class="file-import-btn" data-picker-hint>Escolher arquivo…</label>
+                </div>
+              </div>
+              <label>Preço: <input type="text" value="${escapeAttr(product.price)}" data-field="price"></label>
+              <label>Descrição: <textarea data-field="description">${escapeHtml(product.description)}</textarea></label>
+              <label>Tamanhos (separados por vírgula): <input type="text" value="${escapeAttr(product.sizes.join(', '))}" data-field="sizes"></label>
+            </div>
+          </div>
+        `).join('')
+
+  app.innerHTML = `
+    <div class="admin-container">
+      <header class="admin-header">
+        <h1>Painel Administrativo - Luz da Moda</h1>
+        <div class="admin-header-actions">
+          <button type="button" id="logout" class="secondary-button">Sair</button>
+          <button type="button" id="back-to-site" class="secondary-button">Voltar ao Site</button>
+        </div>
+      </header>
+
+      <div class="admin-actions">
+        <button type="button" id="add-product" class="cta-button">Adicionar Novo Produto</button>
+        <button type="button" id="save-changes" class="cta-button">Salvar Alterações</button>
+        <button type="button" id="export-data" class="secondary-button">Exportar Dados</button>
+        <button type="button" id="import-data" class="secondary-button">Importar Dados</button>
+      </div>
+      <div id="products-list" class="products-list">
+        ${productRows}
+      </div>
+    </div>
+  `
+
+  document.getElementById('logout').addEventListener('click', async () => {
+    const fb = getFirebase()
+    if (fb) await signOut(fb.auth).catch(() => {})
+  })
+
+  document.getElementById('back-to-site').addEventListener('click', () => {
+    window.location.search = ''
+  })
+
+  document.getElementById('add-product').addEventListener('click', () => {
+    const newProduct = {
+      id: Date.now().toString(),
+      category: 'blusas',
+      image: '/images/placeholder.jpg',
+      name: 'Novo Produto',
+      price: 'R$ 0,00',
+      description: 'Descrição do produto',
+      sizes: ['P', 'M', 'G']
+    }
+    products.push(newProduct)
+    sessionStorage.setItem('adminTab', 'list')
+    renderAdminInterface()
+    requestAnimationFrame(() => {
+      document.getElementById(`admin-product-${products.length - 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  })
+
+  document.getElementById('save-changes').addEventListener('click', () => {
+    const productElements = document.querySelectorAll('.admin-product')
+    productElements.forEach((el, index) => {
+      const fields = el.querySelectorAll('[data-field]')
+      fields.forEach(field => {
+        const fieldName = field.dataset.field
+        let value = field.value
+        if (fieldName === 'sizes') {
+          value = value.split(',').map(s => s.trim()).filter(Boolean)
+        }
+        products[index][fieldName] = value
+      })
+    })
+    localStorage.setItem('luzDaModaProducts', JSON.stringify(products))
+    alert('Alterações salvas com sucesso!')
+  })
+
+  document.getElementById('export-data').addEventListener('click', () => {
+    const dataStr = JSON.stringify(products, null, 2)
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr)
+    const exportFileDefaultName = 'luz-da-moda-products.json'
+    const linkElement = document.createElement('a')
+    linkElement.setAttribute('href', dataUri)
+    linkElement.setAttribute('download', exportFileDefaultName)
+    linkElement.click()
+  })
+
+  document.getElementById('import-data').addEventListener('click', () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = e => {
+      const file = e.target.files[0]
+      const reader = new FileReader()
+      reader.onload = event => {
+        try {
+          const importedProducts = JSON.parse(event.target.result)
+          products = importedProducts
+          localStorage.setItem('luzDaModaProducts', JSON.stringify(products))
+          renderAdminInterface()
+          alert('Dados importados com sucesso!')
+        } catch (error) {
+          alert('Erro ao importar dados: ' + error.message)
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  })
+
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('delete-product')) {
+      const index = parseInt(e.target.dataset.index, 10)
+      if (Number.isNaN(index)) return
+      const productName = products[index]?.name || 'este produto'
+      showDeleteModal(productName, () => {
+        products.splice(index, 1)
+        renderAdminInterface()
+      })
+    }
+  })
+
+
+
+  updateImagePickerHints()
+  if (!pickerHintMediaBound) {
+    pickerHintMediaBound = true
+    window.matchMedia('(pointer: coarse)').addEventListener('change', updateImagePickerHints)
+  }
+}
