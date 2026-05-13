@@ -336,7 +336,7 @@ function renderLandingPage() {
     </section>
 
     <footer class="footer">
-      <div>
+      <div class="footer-info">
         <p>Luz da Moda - Centro, Dois Vizinhos, PR</p>
         <p>Entrega condicional e agendamento via WhatsApp.</p>
       </div>

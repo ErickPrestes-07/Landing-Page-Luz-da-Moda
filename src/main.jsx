@@ -3,17 +3,85 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { getFirebase } from './firebase.js'
-import ProductForm from './components/ProductForm'
+import AdminDashboard from './components/AdminDashboard'
 
 const whatsappNumber = '5546999161642'
 const whatsappLink = `https://wa.me/${whatsappNumber}`
 
-const CATEGORIES = ['vestidos', 'blusas', 'calcas', 'camisas', 'conjuntos'];
+function getStoredCategories() {
+  const stored = localStorage.getItem('luzDaModaCategories');
+  if (stored) return JSON.parse(stored);
+  return ['vestidos', 'blusas', 'calcas', 'camisas', 'conjuntos'];
+}
+
+let dynamicCategories = getStoredCategories();
+
+const defaultProducts = [
+  {
+    id: 'conjunto-floral',
+    category: 'conjuntos',
+    image: '/images/piece-conjunto1.jpg',
+    name: 'Conjunto Floral Premium',
+    price: 'R$ 179,90',
+    description: 'Conjunto leve com estampa floral e acabamento elegante. Ideal para trabalho e eventos sociais.',
+    sizes: ['P', 'M', 'G']
+  },
+  {
+    id: 'blusa-rosa',
+    category: 'blusas',
+    image: '/images/piece-blusa.jpg',
+    name: 'Blusa Feminina Rosa',
+    price: 'R$ 89,90',
+    description: 'Blusa moderna em tecido leve, com detalhe em mangas amplas e caimento sofisticado.',
+    sizes: ['P', 'M', 'G']
+  },
+  {
+    id: 'camisa-branca',
+    category: 'camisas',
+    image: '/images/piece-camisa.jpg',
+    name: 'Camisa Branca Casual',
+    price: 'R$ 109,90',
+    description: 'Camisa clássica com modelagem solta, perfeita para looks chiques e confortáveis.',
+    sizes: ['P', 'M']
+  },
+  {
+    id: 'calca-marrom',
+    category: 'calcas',
+    image: '/images/piece-calca.jpg',
+    name: 'Calça Marrom Alfaiataria',
+    price: 'R$ 129,90',
+    description: 'Calça de alfaiataria com corte reto, ótima para combinar com blusas e jaquetas.',
+    sizes: ['P', 'M', 'G']
+  },
+  {
+    id: 'bermuda-casual',
+    category: 'calcas',
+    image: '/images/piece-bermuda.jpg',
+    name: 'Bermuda Casual Marrom',
+    price: 'R$ 99,90',
+    description: 'Bermuda confortável com elastano, perfeita para produções modernas do dia a dia.',
+    sizes: ['M']
+  },
+  {
+    id: 'conjunto-terra',
+    category: 'conjuntos',
+    image: '/images/piece-conjunto2.jpg',
+    name: 'Conjunto Terra',
+    price: 'R$ 189,90',
+    description: 'Conjunto em tons terrosos, ideal para várias ocasiões com muito estilo e conforto.',
+    sizes: ['P', 'M']
+  }
+]
 
 function loadStoredProducts() {
-  const raw = localStorage.getItem('luzDaModaProducts')
-  if (!raw) return []
-  return JSON.parse(raw)
+  try {
+    const raw = localStorage.getItem('luzDaModaProducts')
+    if (!raw) return defaultProducts
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) && parsed.length ? parsed : defaultProducts
+  } catch {
+    return defaultProducts
+  }
 }
 
 let products = loadStoredProducts()
@@ -28,12 +96,18 @@ function escapeAttr(text) {
 
 async function startAdminPanel() {
   const fb = getFirebase()
-  if (!fb) return
+  const appDiv = document.getElementById('app')
+  const root = ReactDOM.createRoot(appDiv)
+
   onAuthStateChanged(fb.auth, (user) => {
-    if (!user) {
-      renderLoginInterface()
+    if (user) {
+      root.render(
+        <React.StrictMode>
+          <AdminDashboard />
+        </React.StrictMode>
+      )
     } else {
-      renderAdminInterface()
+      renderLoginInterface()
     }
   })
 }
@@ -45,94 +119,156 @@ if (window.location.search.includes('admin')) {
 }
 
 function renderLandingPage() {
-  const productCards = products.map(product => `
-    <article class="product" data-category="${escapeAttr(product.category)}">
-      <img src="${escapeAttr(product.image)}" alt="${escapeAttr(product.name)}" />
-      <div class="product-body">
-        <h3 style="font-weight: 900; margin-bottom: 5px;">${escapeHtml(product.name)}</h3>
-        <span style="font-size: 10px; font-weight: 800; color: #bbb; text-transform: uppercase; letter-spacing: 1px;">${escapeHtml(product.category)}</span>
-        <p class="price" style="color: #c92a66; font-weight: 800; font-size: 1.2rem; margin: 15px 0;">${escapeHtml(product.price)}</p>
-        <p style="color: #777; font-size: 0.85rem; line-height: 1.6; margin-bottom: 25px; min-height: 50px;">${escapeHtml(product.description)}</p>
-        <a href="${whatsappLink}" class="cta-button" style="width: 100%; text-align: center; padding: 15px; box-sizing: border-box; font-size: 13px;">Chamar no WhatsApp</a>
-      </div>
-    </article>
-  `).join('')
+  const renderProductCards = (filteredProducts) => {
+    if (filteredProducts.length === 0) {
+      return `<div class="no-stock-message">
+        <span class="no-stock-icon">🛍️</span>
+        <p>No momento não temos peças em estoque para esta categoria.</p>
+        <p class="no-stock-sub">Fique de olho! Novidades chegam toda semana.</p>
+      </div>`
+    }
+
+    return filteredProducts.map(product => `
+      <article class="product" data-category="${escapeAttr(product.category)}">
+        <div class="product-image-wrap">
+          <img src="${escapeAttr(product.image)}" alt="${escapeAttr(product.name)}" class="product-img" />
+        </div>
+        <div class="product-body">
+          <h3 class="product-title">${escapeHtml(product.name)}</h3>
+          <span class="product-category-tag">${escapeHtml(product.category)}</span>
+          <p class="price">${escapeHtml(product.price)}</p>
+          <p class="product-desc">${escapeHtml(product.description)}</p>
+          <div class="product-sizes">
+            ${(product.sizes || []).map(s => `<span>${s}</span>`).join('')}
+          </div>
+        </div>
+      </article>
+    `).join('')
+  }
 
   const app = document.querySelector('#app')
   app.innerHTML = `
     <header class="site-header">
-      <a href="/" class="site-logo">
-        <img src="/favicon.png" alt="Luz da Moda" style="height: 35px;">
-        Luz da Moda
-      </a>
-      <nav class="site-nav">
-        <a href="#catalog">Catálogo</a>
-        <a href="#about">A Loja</a>
-        <a href="#contact">Contato</a>
-      </nav>
+      <div class="header-content-wrap">
+        <div class="site-brand">
+          <img src="/favicon.png" alt="Logo" class="header-logo">
+          <span class="site-nav-brand">Luz da Moda</span>
+        </div>
+        
+        <div class="header-actions">
+          <button class="menu-toggle" id="menu-btn" aria-label="Menu">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+          </button>
+          
+          <nav class="dropdown-menu" id="dropdown-menu">
+            <div class="menu-links">
+              <a href="#catalog" class="menu-item close-trigger">Catálogo</a>
+              <a href="#contact" class="menu-item close-trigger">Contato</a>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-categories">
+              <h4>Filtrar por Categoria</h4>
+              <div class="category-links">
+                <button class="menu-cat-btn active" data-category="all">Todas as Peças</button>
+                ${dynamicCategories.map(cat => `<button class="menu-cat-btn" data-category="${cat}">${cat}</button>`).join('')}
+              </div>
+            </div>
+          </nav>
+        </div>
+      </div>
     </header>
 
-    <section class="hero" id="about">
-      <div class="hero-content">
-        <h1>Sua melhor versão começa aqui.</h1>
-        <p>A Luz da Moda nasceu para celebrar a força e a beleza da mulher. Nossa curadoria traz peças selecionadas para o seu dia a dia.</p>
-        <a href="#catalog" class="cta-button">Explorar Coleção</a>
-      </div>
-    </section>
-
     <main class="catalog" id="catalog">
-      <h2 class="catalog-title">Nossas Peças</h2>
+      <div class="catalog-header">
+        <h2 class="catalog-title">Nossas Peças</h2>
+        <p>Confira nossa seleção exclusiva</p>
+      </div>
       
-      <div class="filter-container">
+      <div class="filters" id="desktop-filters">
         <button class="filter-btn active" data-category="all">Todos</button>
-        ${CATEGORIES.map(cat => `<button class="filter-btn" data-category="${cat}">${cat}</button>`).join('')}
+        ${dynamicCategories.map(cat => `<button class="filter-btn" data-category="${cat}">${cat}</button>`).join('')}
       </div>
 
-      <div class="products">
-        ${productCards}
+      <div class="products" id="products-grid">
+        ${renderProductCards(products)}
       </div>
     </main>
 
-    <footer class="site-footer" id="contact">
-      <div class="footer-content">
-        <div class="footer-brand">
-          <h2 style="display: flex; align-items: center; gap: 10px;">
-            <img src="/favicon.png" alt="Luz da Moda" style="height: 30px; filter: brightness(0) invert(1);">
-            Luz da Moda
-          </h2>
-          <p style="opacity: 0.6; font-size: 14px;">Elegância acessível no centro de Dois Vizinhos.</p>
+    <footer class="footer" id="contact">
+      <div class="footer-info">
+        <div class="site-brand">
+          <span class="site-nav-brand">Luz da Moda</span>
         </div>
-        <div class="footer-info">
-          <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">Contato</h3>
-          <p>📍 Dois Vizinhos - PR</p>
-          <p>📱 (46) 99916-1642</p>
+        
+        <div class="footer-contact-list">
+          <div class="contact-item">
+            <span class="icon">📍</span>
+            <span class="text">Dois Vizinhos - PR</span>
+          </div>
+          <div class="contact-item">
+            <span class="icon">📱</span>
+            <span class="text">(46) 99916-1642</span>
+          </div>
+          <div class="contact-item">
+            <span class="icon">📸</span>
+            <a href="https://instagram.com/lusdamodastore" target="_blank" class="text">@lusdamodastore</a>
+          </div>
+        </div>
+
+        <div class="footer-actions">
+          <a href="${whatsappLink}" target="_blank" class="social-button-outline">
+            Chamar no WhatsApp
+          </a>
         </div>
       </div>
+      
       <div class="footer-bottom">
-        <p>© 2026 Luz da Moda Store. Todos os direitos reservados. | <a href="?admin" style="color: inherit; opacity: 0.5; text-decoration: none;">Admin</a></p>
+        <p>© 2026 Luz da Moda | <a href="?admin" class="admin-link">Admin</a></p>
       </div>
     </footer>
   `
 
-  // Lógica de Filtragem
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const category = btn.dataset.category;
-      
-      // Atualiza botões ativos
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+  const menuBtn = document.getElementById('menu-btn');
+  const dropdownMenu = document.getElementById('dropdown-menu');
+  const productsGrid = document.getElementById('products-grid');
 
-      // Filtra produtos
-      document.querySelectorAll('.product').forEach(product => {
-        const prodCat = product.dataset.category;
-        if (category === 'all' || prodCat === category) {
-          product.style.display = 'block';
-        } else {
-          product.style.display = 'none';
-        }
-      });
+  const toggleMenu = () => {
+    dropdownMenu.classList.toggle('active');
+    menuBtn.classList.toggle('active');
+  }
+
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdownMenu.contains(e.target) && !menuBtn.contains(e.target)) {
+      dropdownMenu.classList.remove('active');
+      menuBtn.classList.remove('active');
+    }
+  });
+
+  document.querySelectorAll('.close-trigger').forEach(link => {
+    link.addEventListener('click', () => {
+      dropdownMenu.classList.remove('active');
+      menuBtn.classList.remove('active');
     });
+  });
+
+  const applyFilter = (category) => {
+    const filtered = category === 'all' ? products : products.filter(p => p.category === category);
+    productsGrid.innerHTML = renderProductCards(filtered);
+    
+    document.querySelectorAll('.filter-btn, .menu-cat-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.category === category);
+    });
+  }
+
+  document.querySelectorAll('.filter-btn, .menu-cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyFilter(btn.dataset.category));
   });
 }
 
@@ -160,142 +296,4 @@ function renderLoginInterface() {
     }
   })
   document.getElementById('back-to-site').addEventListener('click', () => window.location.search = '')
-}
-
-let isFormOpen = false;
-
-function renderAdminInterface() {
-  const app = document.querySelector('#app')
-  
-  function updateUI() {
-    const productRows = products.map((product, index) => `
-      <div class="admin-product-card">
-        <div style="position: relative; margin-bottom: 25px;">
-          <img src="${product.image}" class="admin-product-image" id="prev-${index}">
-          <div style="position: absolute; bottom: 10px; right: 10px; background: white; padding: 8px; border-radius: 12px; font-size: 10px; font-weight: 800; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            TROCAR FOTO
-            <input type="file" class="img-input" data-index="${index}" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
-          </div>
-        </div>
-        
-        <div class="admin-input-group">
-          <label class="admin-label">Nome</label>
-          <input type="text" class="admin-input" value="${escapeAttr(product.name)}" data-index="${index}" data-field="name">
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-          <div class="admin-input-group">
-            <label class="admin-label">Preço</label>
-            <input type="text" class="admin-input" value="${escapeAttr(product.price)}" data-index="${index}" data-field="price">
-          </div>
-          <div class="admin-input-group">
-            <label class="admin-label">Categoria</label>
-            <select class="admin-input admin-select" data-index="${index}" data-field="category">
-              ${CATEGORIES.map(cat => `<option value="${cat}" ${product.category === cat ? 'selected' : ''}>${cat}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-
-        <div class="admin-input-group">
-          <label class="admin-label">Descrição</label>
-          <textarea class="admin-input admin-textarea" data-index="${index}" data-field="description">${escapeHtml(product.description)}</textarea>
-        </div>
-
-        <div class="admin-card-actions">
-          <button class="btn-delete" data-index="${index}">Excluir</button>
-        </div>
-      </div>
-    `).join('')
-
-    app.innerHTML = `
-      <div class="admin-container">
-        <header class="admin-header">
-          <div style="display: flex; align-items: center; gap: 15px;">
-            <img src="/favicon.png" alt="Logo" style="height: 40px;">
-            <h1 style="font-size: 20px; font-weight: 900; margin: 0; color: #333;">Gestão Luz da Moda</h1>
-          </div>
-          <div style="display: flex; gap: 20px;">
-            <button id="back-to-site" style="background: none; border: none; font-weight: 700; cursor: pointer; color: #999; font-size: 14px;">SITE</button>
-            <button id="logout" style="background: none; border: none; font-weight: 700; cursor: pointer; color: #c92a66; font-size: 14px;">SAIR</button>
-          </div>
-        </header>
-
-        <div style="text-align: center; margin-bottom: 80px;">
-          <button id="toggle-form" class="cta-button" style="padding: 25px 60px; font-size: 1.1rem;">
-            ${isFormOpen ? '✕ Fechar Cadastro' : '+ Cadastrar Nova Peça'}
-          </button>
-        </div>
-
-        <div id="form-container" ${!isFormOpen ? 'hidden' : ''} style="margin-bottom: 80px;">
-          <div id="react-product-form"></div>
-        </div>
-
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px;">
-          <h2 style="font-size: 24px; font-weight: 900;">Catálogo Ativo (${products.length})</h2>
-          <button id="save-all" class="cta-button" style="padding: 15px 30px; font-size: 0.8rem; border-radius: 15px;">Salvar Alterações</button>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px;">
-          ${productRows}
-        </div>
-      </div>
-    `
-
-    document.getElementById('toggle-form').addEventListener('click', () => {
-      isFormOpen = !isFormOpen
-      updateUI()
-    })
-
-    if (isFormOpen) {
-      ReactDOM.createRoot(document.getElementById('react-product-form')).render(<ProductForm onSuccess={() => {
-        products = loadStoredProducts()
-        isFormOpen = false
-        updateUI()
-      }} />)
-    }
-
-    document.getElementById('logout').addEventListener('click', () => signOut(getFirebase().auth))
-    document.getElementById('back-to-site').addEventListener('click', () => window.location.search = '')
-
-    document.getElementById('save-all').addEventListener('click', () => {
-      const cards = document.querySelectorAll('.admin-product-card');
-      cards.forEach((card, idx) => {
-        const inputs = card.querySelectorAll('[data-field]');
-        inputs.forEach(input => {
-          const field = input.dataset.field;
-          products[idx][field] = input.value;
-        });
-      });
-      localStorage.setItem('luzDaModaProducts', JSON.stringify(products));
-      alert('Alterações salvas!');
-      updateUI();
-    });
-
-    document.querySelectorAll('.btn-delete').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if(confirm('Excluir peça?')) {
-          products.splice(btn.dataset.index, 1);
-          localStorage.setItem('luzDaModaProducts', JSON.stringify(products));
-          updateUI();
-        }
-      });
-    });
-
-    document.querySelectorAll('.img-input').forEach(input => {
-      input.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if(file) {
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const idx = input.dataset.index;
-            products[idx].image = ev.target.result;
-            document.getElementById(`prev-${idx}`).src = ev.target.result;
-          };
-          reader.readAsDataURL(file);
-        }
-      });
-    });
-  }
-
-  updateUI()
 }
