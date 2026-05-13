@@ -6,7 +6,8 @@ import { getFirebase } from './firebase.js'
 import AdminDashboard from './components/AdminDashboard'
 
 const whatsappNumber = '5546999161642'
-const whatsappLink = `https://wa.me/${whatsappNumber}`
+const whatsappMessage = encodeURIComponent('Olá, vim pelo catálogo de roupas')
+const whatsappLink = `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`
 
 function getStoredCategories() {
   const stored = localStorage.getItem('luzDaModaCategories');
@@ -166,6 +167,7 @@ function renderLandingPage() {
             <div class="menu-links">
               <a href="#catalog" class="menu-item close-trigger">Catálogo</a>
               <a href="#contact" class="menu-item close-trigger">Contato</a>
+              <a href="${whatsappLink}" target="_blank" class="menu-item close-trigger">Chamar no WhatsApp</a>
             </div>
             <div class="menu-divider"></div>
             <div class="menu-categories">

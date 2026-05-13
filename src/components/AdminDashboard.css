@@ -99,7 +99,7 @@
 
 .card-image {
   position: relative;
-  aspect-ratio: 1;
+  aspect-ratio: 3/4;
   background: #f9f9f9;
 }
 
@@ -437,7 +437,7 @@
 }
 
 .pfs-dropzone {
-  aspect-ratio: 4/5; /* Ajustado para roupas */
+  aspect-ratio: 3/4; /* Unificado com o catálogo */
   border: 2px dashed #f9c9df;
   border-radius: 20px;
   position: relative;

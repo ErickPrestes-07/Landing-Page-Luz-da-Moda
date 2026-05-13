@@ -4,7 +4,8 @@ import { doc, getDoc } from 'firebase/firestore'
 import { getFirebase } from './firebase.js'
 
 const whatsappNumber = '5546999161642'
-const whatsappLink = `https://wa.me/${whatsappNumber}`
+const whatsappMessage = encodeURIComponent('Olá, vim pelo catálogo de roupas')
+const whatsappLink = `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`
 
 const defaultProducts = [
   {
@@ -251,6 +252,7 @@ function renderLandingPage() {
       <span class="site-nav-brand">✨ Luz da Moda</span>
       <div class="site-nav-links">
         <a href="#catalog" class="site-nav-link">Catálogo</a>
+        <a href="${whatsappLink}" target="_blank" class="site-nav-link">WhatsApp</a>
         <a href="/?admin" class="site-nav-link site-nav-link--admin">⚙ Admin</a>
       </div>
     </nav>
